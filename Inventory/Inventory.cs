@@ -1,9 +1,8 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-
-using ThingEngine;
 using System;
+using InventoryEngine.Things;
 
 namespace InventoryEngine
 {
@@ -59,36 +58,17 @@ namespace InventoryEngine
     public class Inventory<T> : IInventory where T : ThingProperty
     {
 
-        private event ObservingData.OnChangedDelegate OnChangedEvent;
+        public event ObservingData.OnChangedDelegate OnChanged;
 
-        public void AddListener(ObservingData.OnChangedDelegate listener)
-        {
-            OnChangedEvent += listener;
-        }
-
-        public void RemoveListener(ObservingData.OnChangedDelegate listener)
-        {
-            OnChangedEvent -= listener;
-        }
-
-        public Slote SloteAt(int index)
-        {
-            if (index < 0 || index >= Size)
-            {
-                throw new ArgumentOutOfRangeException($"You are trying to get slote at {index} but the slote range is 0 - {Size - 1} (inclusive)");
-            }
-            return slotes[index];
-        }
-
-        private List<Slote> slotes;
+        private List<Slote> _slotes;
 
         public Inventory(int size)
         {
-            slotes = new List<Slote>();
+            _slotes = new List<Slote>();
             for(int i = 0;i < size;i++)
             {
-                slotes.Add(new Slote());
-                slotes[slotes.Count - 1].OnSloteChangedEvent += OnSloteChanged;
+                _slotes.Add(new Slote(this));
+                _slotes[_slotes.Count - 1].OnSloteChanged += OnSloteChanged;
             }
         }
 
@@ -96,19 +76,39 @@ namespace InventoryEngine
         {
             for(int i = 0; i < amount;i++)
             {
-                slotes.Add(new Slote());
-                slotes[slotes.Count - 1].OnSloteChangedEvent += OnSloteChanged;
+                _slotes.Add(new Slote(this));
+                _slotes[_slotes.Count - 1].OnSloteChanged += OnSloteChanged;
             }
-            OnChangedEvent?.Invoke();
+            OnChanged?.Invoke();
         }
 
         public void RemoveSlotes(int amount)
         {
             for (int i = 0; i < amount; i++)
             {
-                slotes.RemoveAt(slotes.Count - 1);
+                _slotes.RemoveAt(_slotes.Count - 1);
             }
-            OnChangedEvent?.Invoke();
+            OnChanged?.Invoke();
+        }
+
+        public void AddListener(ObservingData.OnChangedDelegate listener)
+        {
+            OnChanged += listener;
+        }
+
+        public void RemoveListener(ObservingData.OnChangedDelegate listener)
+        {
+            OnChanged -= listener;
+        }
+
+        public Slote SloteAt(int index)
+        {
+            if (index < 0 || index >= Size)
+            {
+                Debug.LogWarning($"[GettingSlote]: You are trying to get slote at {index} but the slote range is 0 - {Size - 1} (inclusive)");
+                return null;
+            }
+            return _slotes[index];
         }
 
         public bool IsFittingTheType(Thing thing)
@@ -130,13 +130,13 @@ namespace InventoryEngine
                 if(IsFittingTheType(thing.Key))
                 {
                     int amount = thing.Value;
-                    for(int i = 0;i < slotes.Count;i++)
+                    for(int i = 0;i < _slotes.Count;i++)
                     {
-                        if(!slotes[i].IsEmpty)
+                        if(!_slotes[i].IsEmpty)
                         {
-                            if (slotes[i].item.thing == thing.Key)
+                            if (_slotes[i].Item.Thing == thing.Key)
                             {
-                                amount -= thing.Key.MaxAmountInSlote - slotes[i].Amount;
+                                amount -= thing.Key.MaxAmountInSlote - _slotes[i].Amount;
                                 if (amount <= 0)
                                     break;
                             }
@@ -168,27 +168,27 @@ namespace InventoryEngine
         {
             if (newitem != null)
             {
-                if (!IsFittingTheType(newitem.thing))
+                if (!IsFittingTheType(newitem.Thing))
                 {
                     return amount;
                 }
                 List<int> emptyslotes = new List<int>();
-                for (int i = 0; i < slotes.Count; i++)
+                for (int i = 0; i < _slotes.Count; i++)
                 {
-                    if (!slotes[i].IsEmpty)
+                    if (!_slotes[i].IsEmpty)
                     {
-                        if (slotes[i].item.thing == newitem.thing)
+                        if (_slotes[i].Item.Thing == newitem.Thing)
                         {
-                            if (newitem.thing.MaxAmountInSlote - slotes[i].Amount >= amount)
+                            if (newitem.Thing.MaxAmountInSlote - _slotes[i].Amount >= amount)
                             {
-                                slotes[i].Amount += amount;
-                                OnChangedEvent?.Invoke();
+                                _slotes[i].Amount += amount;
+                                OnChanged?.Invoke();
                                 return 0;
                             }
                             else
                             {
-                                amount -= newitem.thing.MaxAmountInSlote - slotes[i].Amount;
-                                slotes[i].Amount = newitem.thing.MaxAmountInSlote;
+                                amount -= newitem.Thing.MaxAmountInSlote - _slotes[i].Amount;
+                                _slotes[i].Amount = newitem.Thing.MaxAmountInSlote;
                             }
                         }
                     }
@@ -201,15 +201,15 @@ namespace InventoryEngine
                 {
                     for (int i = 0; i < emptyslotes.Count; i++)
                     {
-                        if (newitem.thing.MaxAmountInSlote >= amount)
+                        if (newitem.Thing.MaxAmountInSlote >= amount)
                         {
-                            slotes[emptyslotes[i]].SetItem(newitem, amount);
+                            _slotes[emptyslotes[i]].SetItem(newitem, amount);
                             return 0;
                         }
                         else
                         {
-                            amount -= newitem.thing.MaxAmountInSlote;
-                            slotes[emptyslotes[i]].SetItem(Item.Create(newitem.thing), newitem.thing.MaxAmountInSlote);
+                            amount -= newitem.Thing.MaxAmountInSlote;
+                            _slotes[emptyslotes[i]].SetItem(Item.Create(newitem.Thing), newitem.Thing.MaxAmountInSlote);
                         }
                     }
                 }
@@ -226,37 +226,37 @@ namespace InventoryEngine
         {
             if (newitem != null)
             {
-                if (!IsFittingTheType(newitem.thing))
+                if (!IsFittingTheType(newitem.Thing))
                 {
                     return amount;
                 }
-                if (slotes[sloteid].IsEmpty)
+                if (_slotes[sloteid].IsEmpty)
                 {
-                    if (newitem.thing.MaxAmountInSlote >= amount)
+                    if (newitem.Thing.MaxAmountInSlote >= amount)
                     {
-                        slotes[sloteid].SetItem(newitem, amount);
+                        _slotes[sloteid].SetItem(newitem, amount);
                         return 0;
                     }
                     else
                     {
-                        slotes[sloteid].SetItem(newitem, newitem.thing.MaxAmountInSlote);
-                        return amount - newitem.thing.MaxAmountInSlote;
+                        _slotes[sloteid].SetItem(newitem, newitem.Thing.MaxAmountInSlote);
+                        return amount - newitem.Thing.MaxAmountInSlote;
                     }
                 }
                 else
                 {
-                    if (slotes[sloteid].item.thing == newitem.thing)
+                    if (_slotes[sloteid].Item.Thing == newitem.Thing)
                     {
-                        if (newitem.thing.MaxAmountInSlote - slotes[sloteid].Amount >= amount)
+                        if (newitem.Thing.MaxAmountInSlote - _slotes[sloteid].Amount >= amount)
                         {
-                            slotes[sloteid].Amount += amount;
+                            _slotes[sloteid].Amount += amount;
                             return 0;
                         }
                         else
                         {
-                            int sloteamount = slotes[sloteid].Amount;
-                            slotes[sloteid].Amount = newitem.thing.MaxAmountInSlote;
-                            return amount - (newitem.thing.MaxAmountInSlote - sloteamount);
+                            int sloteamount = _slotes[sloteid].Amount;
+                            _slotes[sloteid].Amount = newitem.Thing.MaxAmountInSlote;
+                            return amount - (newitem.Thing.MaxAmountInSlote - sloteamount);
                         }
                     }
                 }
@@ -270,19 +270,19 @@ namespace InventoryEngine
 
         public bool Contains(Thing thing, int amount)
         {
-            for(int i = 0; i < slotes.Count;i++)
+            for(int i = 0; i < _slotes.Count;i++)
             {
-                if (!slotes[i].IsEmpty)
+                if (!_slotes[i].IsEmpty)
                 {
-                    if (slotes[i].item.thing == thing)
+                    if (_slotes[i].Item.Thing == thing)
                     {
-                        if (slotes[i].Amount >= amount)
+                        if (_slotes[i].Amount >= amount)
                         {
                             return true;
                         }
                         else
                         {
-                            amount -= slotes[i].Amount;
+                            amount -= _slotes[i].Amount;
                         }
                     }
                 }
@@ -293,23 +293,20 @@ namespace InventoryEngine
 
         public void ClearAll()
         {
-            for(int i = 0; i < slotes.Count;i++)
+            for(int i = 0; i < _slotes.Count;i++)
             {
-                slotes[i].Amount = 0;
+                _slotes[i].Amount = 0;
             }
         }
 
-        public int Size
-        {
-            get { return slotes.Count; }
-        }
+        public int Size => _slotes.Count;
 
         public Slote GetFirstEmptySlote()
         {
-            for(int i = 0; i < slotes.Count;i++)
+            for(int i = 0; i < _slotes.Count;i++)
             {
-                if (slotes[i].IsEmpty)
-                    return slotes[i];
+                if (_slotes[i].IsEmpty)
+                    return _slotes[i];
             }
             return null;
         }
@@ -317,13 +314,13 @@ namespace InventoryEngine
         public int GetAmountOf(Thing thing)
         {
             int amount = 0;
-            for (int i = 0; i < slotes.Count; i++)
+            for (int i = 0; i < _slotes.Count; i++)
             {
-                if (!slotes[i].IsEmpty)
+                if (!_slotes[i].IsEmpty)
                 {
-                    if (slotes[i].item.thing == thing)
+                    if (_slotes[i].Item.Thing == thing)
                     {
-                        amount += slotes[i].Amount;
+                        amount += _slotes[i].Amount;
                     }
                 }
             }
@@ -334,29 +331,29 @@ namespace InventoryEngine
         public int Remove(Thing newthing, int amount)
         {
             bool changed = false;
-            for (int i = 0; i < slotes.Count; i++)
+            for (int i = 0; i < _slotes.Count; i++)
             {
-                if (!slotes[i].IsEmpty)
+                if (!_slotes[i].IsEmpty)
                 {
-                    if (slotes[i].item.thing == newthing)
+                    if (_slotes[i].Item.Thing == newthing)
                     {
-                        if (slotes[i].Amount >= amount)
+                        if (_slotes[i].Amount >= amount)
                         {
-                            slotes[i].Amount -= amount;
-                            OnChangedEvent?.Invoke();
+                            _slotes[i].Amount -= amount;
+                            OnChanged?.Invoke();
                             return 0;
                         }
                         else
                         {
-                            amount -= slotes[i].Amount;
-                            slotes[i].Amount = 0;
+                            amount -= _slotes[i].Amount;
+                            _slotes[i].Amount = 0;
                             changed = true;
                         }
                     }
                 }
             }
             if (changed)
-                OnChangedEvent?.Invoke();
+                OnChanged?.Invoke();
             return amount;
         }
 
@@ -366,9 +363,9 @@ namespace InventoryEngine
             for(int i = 0; i < Size;i++)
             {
                 Dictionary<string, object> slotedata = new Dictionary<string, object>();
-                slotedata.Add("amount", slotes[i].Amount);
-                if (!slotes[i].IsEmpty)
-                    slotedata.Add("item", slotes[i].item.GetSerializedData());
+                slotedata.Add("amount", _slotes[i].Amount);
+                if (!_slotes[i].IsEmpty)
+                    slotedata.Add("item", _slotes[i].Item.GetSerializedData());
                 else
                     slotedata.Add("item", null);
                 data[i] = slotedata;
@@ -380,101 +377,146 @@ namespace InventoryEngine
         {
             if (SerializedData == null)
                 return;
-            slotes.Clear();
+            _slotes.Clear();
             object[] data = (object[])SerializedData;
             for(int i = 0; i < data.Length;i++)
             {
                 Dictionary<string, object> slotedata = (Dictionary<string, object>)data[i];
                 AddSlotes(1);
                 if ((int)slotedata["amount"] > 0)
-                    slotes[slotes.Count - 1].SetItem(Item.Create(slotedata["item"]), (int)slotedata["amount"]);
+                    _slotes[_slotes.Count - 1].SetItem(Item.Create(slotedata["item"]), (int)slotedata["amount"]);
             }
         }
 
         private void OnSloteChanged(Slote slote)
         {
-            OnChangedEvent?.Invoke();
+            OnChanged?.Invoke();
         }
-
-
     }
 
     public class Slote
     {
         public delegate void OnSloteChangedDelegate(Slote slote);
 
-        public event OnSloteChangedDelegate OnSloteChangedEvent;
+        public event OnSloteChangedDelegate OnSloteChanged;
 
-        private int amount = 0;
+        public Slote(IInventory parent)
+        {
+            if (parent == null)
+                throw new ArgumentNullException("[Slote.ctor]: Creating slote: 'parent' argument is null!");
+            this._parent = parent;
+        }
 
-        public Item item { get; private set; }
+        private int _amount = 0;
+
+        private Item _item;
+
+        private IInventory _parent;
+
+        public IInventory Inventory => _parent;
+
+        public Item Item => _item;
 
         public void SetItem(Item newitem, int newamount)
         {
             if(newamount > 0 && newitem != null)
             {
-                item = newitem;
-                item.OnDestroyItemEvent += OnDestroyItem;
-                Amount = newamount;
+                if (_parent.IsFittingTheType(newitem.Thing))
+                {
+                    _item = newitem;
+                    _item.OnDestroyItemEvent += OnDestroyItem;
+                    Amount = newamount;
+                }
+                else
+                {
+                    Debug.LogWarning($"[ItemAssignment]: You are trying to set item (thing: {_item.Thing.Name}) that is typically incompatible with inventory type! Assignment is cancelled");
+                    return;
+                }
             }
             else
             {
-                item = null;
-                amount = 0;
-                OnSloteChangedEvent?.Invoke(this);
+                if(_item != null)
+                {
+                    _item.OnDestroyItemEvent -= OnDestroyItem;
+                }
+                _item = null;
+                _amount = 0;
+                OnSloteChanged?.Invoke(this);
             }
         }
 
         public int Amount
         {
-            get { return amount; }
+            get { return _amount; }
             set
             {
                 if (value == 0)
                 {
-                    amount = 0;
-                    if (item != null)
+                    _amount = 0;
+                    if (_item != null)
                     {
-                        item.OnDestroyItemEvent -= OnDestroyItem;
+                        _item.OnDestroyItemEvent -= OnDestroyItem;
                     }
-                    item = null;
+                    _item = null;
                 }
                 else
                 {
-                    if (item != null)
-                        amount = Mathf.Clamp(value, 0, item.thing.MaxAmountInSlote);
+                    if (_item != null)
+                        _amount = Mathf.Clamp(value, 0, _item.Thing.MaxAmountInSlote);
                     else
-                        throw new Exception("You are trying to add some amount to slote, but slote is empty ('item' variable is null) !");
+                        Debug.LogWarning("[Amount.set] You are trying to add some amount to slote, but slote is empty ('item' variable is null) !");
+                    return;
                 }
-                OnSloteChangedEvent?.Invoke(this);
+                OnSloteChanged?.Invoke(this);
             }
         }
 
-        public bool IsEmpty { get { return amount == 0; } }
+        public bool IsEmpty => _amount == 0;
 
         public void ExchangeInfoWithAnotherSlote(Slote anotherslote)
         {
-            int myamount = amount;
-            Item myitem = item;
+            if (IsEmpty && anotherslote.IsEmpty)
+                return;
+
+            if (!IsEmpty)
+            {
+                if (!anotherslote.Inventory.IsFittingTheType(_item.Thing))
+                {
+                    Debug.LogWarning($"[ExchangeOperation]: You are trying to set item (thing: {_item.Thing.Name}) that is typically incompatible with inventory type! Assignment is cancelled");
+                    return;
+                }
+            }
+
+            if (!anotherslote.IsEmpty)
+            {
+                if (!_parent.IsFittingTheType(anotherslote._item.Thing))
+                {
+                    Debug.LogWarning($"[ExchangeOperation]: You are trying to set item (thing: {_item.Thing.Name}) that is typically incompatible with inventory type! Assignment is cancelled");
+                    return;
+                }
+            }
+
+            int myamount = _amount;
+            Item myitem = _item;
 
             if (myitem != null)
                 myitem.OnDestroyItemEvent -= OnDestroyItem;
-            if (anotherslote.item != null)
-                anotherslote.item.OnDestroyItemEvent -= anotherslote.OnDestroyItem;
+            if (anotherslote._item != null)
+                anotherslote._item.OnDestroyItemEvent -= anotherslote.OnDestroyItem;
 
-            amount = anotherslote.amount;
-            item = anotherslote.item;
+            _amount = anotherslote._amount;
+            _item = anotherslote._item;
 
-            anotherslote.amount = myamount;
-            anotherslote.item = myitem;
+            anotherslote._amount = myamount;
+            anotherslote._item = myitem;
 
-            if (item != null)
-                item.OnDestroyItemEvent += OnDestroyItem;
-            if (anotherslote.item != null)
-                anotherslote.item.OnDestroyItemEvent += anotherslote.OnDestroyItem;
+            if (_item != null)
+                _item.OnDestroyItemEvent += OnDestroyItem;
+            if (anotherslote._item != null)
+                anotherslote._item.OnDestroyItemEvent += anotherslote.OnDestroyItem;
 
-            OnSloteChangedEvent?.Invoke(this);
-            anotherslote.OnSloteChangedEvent?.Invoke(anotherslote);
+            OnSloteChanged?.Invoke(this);
+            anotherslote.OnSloteChanged?.Invoke(anotherslote);
         }
 
         private void OnDestroyItem()
@@ -485,7 +527,7 @@ namespace InventoryEngine
         public override string ToString()
         {
             if (!IsEmpty)
-                return $"Slote info \n   Content: {item.thing.Name} \n   Amount: {amount} \n";
+                return $"Slote info \n   Content: {_item.Thing.Name} \n   Amount: {_amount} \n";
             else
                 return $"Slote info \n   Empty";
         }

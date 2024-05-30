@@ -1,111 +1,106 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-
-using ThingEngine;
+using InventoryEngine.Things;
 
 namespace InventoryEngine
 {
     public class Item
     {
-        public Thing thing { get; private set; }
+        public delegate void OnDestroyItemDelegate();
 
-        private MainProperty mainProperty;
+        public event OnDestroyItemDelegate OnDestroyItemEvent;
 
-        public MainProperty MainProperty
+        public static Item Create(Thing thing)
         {
-            get { return mainProperty; }
-        }
-
-        private ThingProperty[] properties;
-
-        public static Item Create(Thing newthing)
-        {
-            if(newthing != null)
-            {
-                return new Item(newthing);
-            }
-            return null;
+            if (thing == null) return null;
+            return new Item(thing);
         }
 
         public static Item Create(object SerializedData)
         {
             Dictionary<string, object> data = (Dictionary<string, object>)SerializedData;
             Thing thing = ThingCollection.Find((string)data["thingid"]);
-            if(thing != null)
-            {
-                Item item = new Item(thing, SerializedData);
-                return item;
-            }
-            return null;
+
+            if (thing == null) return null;
+
+            return new Item(thing, SerializedData); ;
         }
 
-        private Item(Thing newthing)
+        private Item(Thing thing)
         {
-            thing = newthing;
-            if (thing.MainProperty != null)
-                mainProperty = (MainProperty)thing.MainProperty.GetCopy();
+            _thing = thing;
+            if (Thing.MainProperty != null)
+                _mainProperty = Object.Instantiate(Thing.MainProperty);
             else
-                mainProperty = ScriptableObject.CreateInstance<MainProperty>();
-            mainProperty.Item = this;
-            properties = new ThingProperty[thing.Properties.Length];
-            for (int i = 0; i < thing.Properties.Length; i++)
+                _mainProperty = ScriptableObject.CreateInstance<MainProperty>();
+            _mainProperty.Item = this;
+            _properties = new ThingProperty[Thing.Properties.Length];
+            for (int i = 0; i < Thing.Properties.Length; i++)
             {
-                properties[i] = thing.Properties[i].GetCopy();
-                properties[i].SetMainProperty(mainProperty);
+                _properties[i] = Object.Instantiate(Thing.Properties[i]);
+                _properties[i].MainProperty = _mainProperty;
             }
         }
 
-        private Item(Thing _thing, object SerializedData)
+        private Item(Thing thing, object SerializedData)
         {
             Dictionary<string, object> data = (Dictionary<string, object>)SerializedData;
-            thing = _thing;
-            if (thing.MainProperty != null)
-                mainProperty = (MainProperty)thing.MainProperty.GetCopy();
+            _thing = thing;
+            if (Thing.MainProperty != null)
+                _mainProperty = Object.Instantiate(Thing.MainProperty);
             else
-                mainProperty = ScriptableObject.CreateInstance<MainProperty>();
-            mainProperty.Item = this;
-            mainProperty.Strength = (float)data["strength"];
-            properties = new ThingProperty[thing.Properties.Length];
-            for (int i = 0; i < thing.Properties.Length; i++)
+                _mainProperty = ScriptableObject.CreateInstance<MainProperty>();
+            _mainProperty.Item = this;
+            _mainProperty.Strength = (float)data["strength"];
+            _properties = new ThingProperty[Thing.Properties.Length];
+            for (int i = 0; i < Thing.Properties.Length; i++)
             {
-                properties[i] = thing.Properties[i].GetCopy();
-                properties[i].SetMainProperty(mainProperty);
+                _properties[i] = Object.Instantiate(Thing.Properties[i]);
+                _properties[i].MainProperty = _mainProperty;
             }
         }
 
-        public delegate void OnDestroyItemDelegate();
 
-        public event OnDestroyItemDelegate OnDestroyItemEvent;
 
-        public T GetPropertyorNull<T>() where T : ThingProperty
+        private Thing _thing;
+
+        private MainProperty _mainProperty;
+
+        private ThingProperty[] _properties;
+
+        public Thing Thing => _thing;
+
+        public MainProperty MainProperty => _mainProperty;
+
+        public T GetProperty<T>() where T : ThingProperty
         {
-            for (int i = 0; i < properties.Length; i++)
+            for (int i = 0; i < _properties.Length; i++)
             {
-                if (properties[i] is T)
-                    return (T)properties[i];
+                if (_properties[i] is T)
+                    return (T)_properties[i];
             }
             return null;
         }
 
-        public T[] GetPropertiesorNull<T>() where T : ThingProperty
+        public T[] GetProperties<T>() where T : ThingProperty
         {
             List<T> props = new List<T>();
-            for (int i = 0; i < properties.Length; i++)
+            for (int i = 0; i < _properties.Length; i++)
             {
-                if (properties[i] is T)
-                    props.Add((T)properties[i]);
+                if (_properties[i] is T)
+                    props.Add((T)_properties[i]);
             }
             return props.ToArray();
         }
 
         public void DestroyItem()
         {
-            for(int i = 0; i < properties.Length;i++)
+            for(int i = 0; i < _properties.Length;i++)
             {
-                if(properties[i] is IDestroyItemListener)
+                if(_properties[i] is IDestroyItemListener)
                 {
-                    ((IDestroyItemListener)properties[i]).OnDestroyItem();
+                    ((IDestroyItemListener)_properties[i]).OnDestroyItem();
                 }
             }
             OnDestroyItemEvent?.Invoke();
@@ -114,8 +109,8 @@ namespace InventoryEngine
         public object GetSerializedData()
         {
             Dictionary<string, object> data = new Dictionary<string, object>();
-            data.Add("thingid", thing.name);
-            data.Add("strength", mainProperty.Strength);
+            data.Add("thingid", Thing.name);
+            data.Add("strength", _mainProperty.Strength);
             return data;
         }
 
