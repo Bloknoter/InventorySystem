@@ -24,7 +24,7 @@ namespace InventoryEngine
         private int m_maxAmountInSlote = 20;
 
         [SerializeField]
-        private ThingProperty[] m_thingProperties;
+        private ThingProperty[] m_thingProperties = new ThingProperty[0];
 
         public string UniqueID => m_uniqueID;
 

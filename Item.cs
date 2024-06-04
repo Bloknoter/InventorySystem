@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using UnityEngine;
@@ -25,8 +25,11 @@ namespace InventoryEngine
 
         public static Item Create(Thing thing)
         {
-            if (thing == null) 
+            if (thing == null)
+            {
+                Debug.LogError("Can't create item from null thing");
                 return null;
+            }
             
             return new Item(thing);
         }

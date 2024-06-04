@@ -207,7 +207,9 @@ namespace InventoryEngine
                 Dictionary<string, object> slotData = (Dictionary<string, object>)data[i];
                 if (slotData["item"] != null)
                 {
-                    CreateAndSetupNewContainer(Item.Create(slotData["item"]), (int)slotData["amount"]);
+                    var item = Item.Create(slotData["item"]);
+                    if (item != null)  // could be null if we realeased a new game version where thing was deleted
+                        CreateAndSetupNewContainer(item, (int)slotData["amount"]);
                 }
             }
         }

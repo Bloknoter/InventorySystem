@@ -681,7 +681,9 @@ namespace InventoryEngine
             {
                 Dictionary<string, object> slotData = (Dictionary<string, object>)data[i];
                 var pos = (int[])slotData[c_positionSaveID];
-                CreateAndSetupNewContainer(new Vector2Int(pos[0], pos[1]), Item.Create(slotData[c_itemSaveID]), (int)slotData[c_amountSaveID]);
+                var item = Item.Create(slotData[c_itemSaveID]);
+                if (item != null)  // could be null if we realeased a new game version where thing was deleted
+                    CreateAndSetupNewContainer(new Vector2Int(pos[0], pos[1]), item, (int)slotData[c_amountSaveID]);
             }
 
             OnContentChanged?.Invoke(this);
